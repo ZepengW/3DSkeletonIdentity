@@ -17,9 +17,6 @@
 #include "camera.h"
 
 
-MultiFrameListener::MultiFrameListener()
-{
-}
 
 MultiFrameListener::MultiFrameListener(void* rgbData, void* depthData, std::map<astra::JointType, astra::Vector2i>* jointData, int* numInQueue, int queueMax)
 {
