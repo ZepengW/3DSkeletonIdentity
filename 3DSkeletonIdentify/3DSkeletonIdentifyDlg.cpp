@@ -9,6 +9,7 @@
 #include "afxdialogex.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui_c.h>
+#include <cstring>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -76,6 +77,7 @@ BEGIN_MESSAGE_MAP(CMy3DSkeletonIdentifyDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(BtnStart, &CMy3DSkeletonIdentifyDlg::OnBnClickedBtnstart)
+	ON_BN_CLICKED(BtnDisplayJoint, &CMy3DSkeletonIdentifyDlg::OnBnClickedBtndisplayjoint)
 END_MESSAGE_MAP()
 
 
@@ -111,8 +113,11 @@ BOOL CMy3DSkeletonIdentifyDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
+	// 参数初始化
+	this->displayJoints = false;
+	this->processer = NULL;
+	// 显示窗口初始化
 	cv::namedWindow("Rgb");
-
 	HWND hWnd = (HWND)cvGetWindowHandle("Rgb");
 	HWND hParent = ::GetParent(hWnd);
 	::SetParent(hWnd, GetDlgItem(PicDisplayRgb)->m_hWnd);
@@ -122,6 +127,8 @@ BOOL CMy3DSkeletonIdentifyDlg::OnInitDialog()
 		cv::Scalar(0, 0, 255), 1, 8, 0);
 	imshow("Rgb", front);
 	cv::waitKey(10);
+	//隐藏控件
+	GetDlgItem(BtnDisplayJoint)->ShowWindow(false);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -190,12 +197,36 @@ void CMy3DSkeletonIdentifyDlg::OnBnClickedBtnstart()
 		imshow("Rgb", front);
 		GetDlgItem(BtnStart)->EnableWindow(1);
 		SetDlgItemText(BtnStart, L"开始");
-		return;
+		GetDlgItem(BtnDisplayJoint)->ShowWindow(false);
+	}
+	else
+	{
+		GetDlgItem(BtnStart)->EnableWindow(0);
+		this->processer = new Processer(&this->displayJoints);
+		this->processer->begin_detect();
+		GetDlgItem(BtnStart)->EnableWindow(1);
+		SetDlgItemText(BtnStart, L"停止");
+		GetDlgItem(BtnDisplayJoint)->ShowWindow(true);
 	}
 	
-	GetDlgItem(BtnStart)->EnableWindow(0);
-	this->processer = new Processer();
-	this->processer->begin_detect();
-	GetDlgItem(BtnStart)->EnableWindow(1);
-	SetDlgItemText(BtnStart, L"停止");
+	
+}
+
+
+
+void CMy3DSkeletonIdentifyDlg::OnBnClickedBtndisplayjoint()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CString btnText;
+	GetDlgItemText(BtnDisplayJoint, btnText);
+	if (btnText == L"显示骨骼")
+	{
+		this->displayJoints = true;
+		SetDlgItemText(BtnDisplayJoint, L"隐藏骨骼");
+	}
+	else
+	{
+		this->displayJoints = false;
+		SetDlgItemText(BtnDisplayJoint, L"显示骨骼");
+	}
 }

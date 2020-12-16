@@ -33,7 +33,9 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	afx_msg void OnBnClickedBtnstart();
-
+	afx_msg void OnBnClickedBtndisplayjoint();
 // 开发者实现
 	Processer* processer = NULL;
+	bool displayJoints;
+	
 };
