@@ -4,18 +4,27 @@
 #include <shared_mutex>
 #include <opencv2/opencv.hpp>
 #include "display_opencv.h"
+#include "python_api.h"
+#include <queue>
 
 enum ProcesserWorkMode {
-	COLLECT_RGB_DEPTH,
-	COLLECT_RGB_JOINTS_ASTRA_AUTO,
-	COLLECT_RGB_JOINTS_OPENPOSE_AUTO,
-	DETECT_BY_JOINTS
+	RGB,
+	DEPTH,
+	RGB_BODY
 };
 
 class Processer
 {
 public:
-	Processer(bool* displayJoints);
+	/// <summary>
+	/// 
+	/// </summary>
+	/// <param name="displayJoints"></param>
+	/// <param name="algrothrim"> 
+	///		0：使用openpose检测骨骼点	
+	///		1：使用Astra SDK检测骨骼点
+	/// </param>
+	Processer(bool* displayJoints,int algrothrim);
 	~Processer();
 	void camera_initialize(std::string license, ProcesserWorkMode mode, int width = 640, int height = 480);
 	void detect(bool* isThreadAlive);
@@ -27,17 +36,32 @@ private:
 	int numInQueue;
 	mutable std::shared_mutex numInQueueMutex;
 	bool isThreadAlive;
+	//存储骨骼序列连续帧
+	std::queue<int[18*2]> jointFrameData;
 
+	//astra sdk 相关
 	astra::StreamSet* streamSet;
 	astra::StreamReader* streamReader;
 	MultiFrameListener* listener;
 	// open cv 显示类
 	Display display;
+	// python api
+	JointMatch jointMatch;
+	//openpose 调用类
+	void* jointByOpenpose;
 	
 	bool* displayJoints;
 
 	void convert_astrargb_to_mat(cv::Mat& outputMat);
+	//detect person with astra sdk
 	void draw_person_rect(cv::Mat& mat);
+	//detect person with openpose  
+	void draw_person_rect(cv::Mat& mat,float* jointsArray);
+	//draw skeleton with astra sdk
 	void draw_skeleton(cv::Mat& mat);
 	void drawLine(cv::Mat& frame, std::map<astra::JointType, astra::Vector2i> jointsPosition, astra::JointType v1, astra::JointType v2);
+	//清空连续骨骼帧队列
+	void clearJointFrame();
+	//向骨骼帧队列中增加帧
+	void addJointFrame();
 };

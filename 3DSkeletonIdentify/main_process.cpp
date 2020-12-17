@@ -1,13 +1,16 @@
 #include "main_process.h"
 #include <astra/astra.hpp>
 #include <thread>
+#include "joint_by_openpose.h"
+
 #define WIDTH 640
 #define HEIGHT 480
-#define MAX_QUEUE 1 
+#define MAX_QUEUE 1		//对于视频采集的限制
+#define MAX_FRAME 30	//对于骨骼步态信息提取的限制
 
 void camera_fresh(int* numInQueue, mutable std::shared_mutex* mutex, bool* isThreadAlive);
 
-Processer::Processer(bool* displayJoints) :display(WIDTH, HEIGHT)
+Processer::Processer(bool* displayJoints, int algrothrim) :display(WIDTH, HEIGHT)
 {
 	this->rgbData = (astra::RgbPixel*)malloc(WIDTH * HEIGHT * sizeof(astra::RgbPixel));
 	this->jointsData.clear();
@@ -18,12 +21,24 @@ Processer::Processer(bool* displayJoints) :display(WIDTH, HEIGHT)
 	this->streamSet = NULL;
 	this->listener = NULL;
 	this->displayJoints = displayJoints;
-	camera_initialize("license", ProcesserWorkMode::DETECT_BY_JOINTS, WIDTH, HEIGHT);
+	
+	//openpose 
+	if (0 == algrothrim)
+	{
+		this->jointByOpenpose = new JointByOpenpose();
+		camera_initialize("license", ProcesserWorkMode::RGB, WIDTH, HEIGHT);
+	}
+	if (1 == algrothrim)
+	{
+		this->jointByOpenpose = NULL;
+		camera_initialize("license", ProcesserWorkMode::RGB_BODY, WIDTH, HEIGHT);
+	}
 }
 
 Processer::~Processer()
 {
 	this->isThreadAlive = false;
+	cv::waitKey(1000);	//粗暴地等待子线程结束
 	//astra camera terminate
 	if (NULL != this->streamReader)
 	{
@@ -41,6 +56,12 @@ Processer::~Processer()
 		delete this->streamSet;
 		this->streamSet = NULL;
 	}
+	//openpose delete
+	if (NULL != this->jointByOpenpose)
+	{
+		delete this->jointByOpenpose;
+		this->jointByOpenpose = NULL;
+	}
 
 	astra::terminate();
 	//data release
@@ -57,22 +78,37 @@ void Processer::camera_initialize(std::string license, ProcesserWorkMode mode, i
 	this->streamSet = new astra::StreamSet();
 	this->streamReader = new astra::StreamReader(streamSet->create_reader());
 	//set stream detect begin
-	auto mode_depth = this->streamReader->stream<astra::DepthStream>().mode();
-	mode_depth.set_width(width);
-	mode_depth.set_height(height);
-	this->streamReader->stream<astra::DepthStream>().set_mode(mode_depth);
-	this->streamReader->stream<astra::DepthStream>().start();
-	auto mode_rgb = this->streamReader->stream<astra::ColorStream>().mode();
-	mode_rgb.set_width(width);
-	mode_rgb.set_height(height);
-	this->streamReader->stream<astra::ColorStream>().set_mode(mode_rgb);
-	this->streamReader->stream<astra::ColorStream>().start();
-	this->streamReader->stream<astra::BodyStream>().start();
+	if (RGB == mode)
+	{
+		auto mode_rgb = this->streamReader->stream<astra::ColorStream>().mode();
+		mode_rgb.set_width(width);
+		mode_rgb.set_height(height);
+		this->streamReader->stream<astra::ColorStream>().set_mode(mode_rgb);
+		this->streamReader->stream<astra::ColorStream>().start();
+	}
+	else if (DEPTH == mode)
+	{
+		auto mode_depth = this->streamReader->stream<astra::DepthStream>().mode();
+		mode_depth.set_width(width);
+		mode_depth.set_height(height);
+		this->streamReader->stream<astra::DepthStream>().set_mode(mode_depth);
+		this->streamReader->stream<astra::DepthStream>().start();
+	}
+	else if (RGB_BODY == mode)
+	{
+		auto mode_rgb = this->streamReader->stream<astra::ColorStream>().mode();
+		mode_rgb.set_width(width);
+		mode_rgb.set_height(height);
+		this->streamReader->stream<astra::ColorStream>().set_mode(mode_rgb);
+		this->streamReader->stream<astra::ColorStream>().start();
+		this->streamReader->stream<astra::BodyStream>().start();
+	}
 
 	this->listener = new MultiFrameListener(this->rgbData, NULL, &this->jointsData, &this->numInQueue, MAX_QUEUE);
 	this->streamReader->add_listener(*this->listener);
 	//摄像头数据采集数据更新线程
 	std::thread p = std::thread(camera_fresh, &this->numInQueue, &this->numInQueueMutex, &this->isThreadAlive);
+	p.get_id();
 	p.detach();
 
 }
@@ -90,16 +126,40 @@ void Processer::detect(bool* isThreadAlive)
 		cv::Mat rgbmat = cv::Mat(HEIGHT, WIDTH, CV_8UC3);
 		this->numInQueueMutex.lock();
 		this->convert_astrargb_to_mat(rgbmat);
-		//draw outline of person in image
-		if (!this->jointsData.empty())
+		
+		//检测骨骼点，标出人体框图
+		JointByOpenpose* jointMethod = (JointByOpenpose*)this->jointByOpenpose;
+		if (NULL != jointMethod)	//detect with openpose
 		{
-			this->draw_person_rect(rgbmat);
-			//display joints
-			if(NULL!=this->displayJoints
-				&&*this->displayJoints)
-				this->draw_skeleton(rgbmat);
-		}
+			float* jointsArray = (float*)malloc(18 * 3 * sizeof(float));
+			cv::Mat rgbWithJoints = cv::Mat(HEIGHT, WIDTH, CV_8UC3);
+			if (jointMethod->getJointsFromRgb(rgbmat, rgbWithJoints, jointsArray))
+			{
 
+				if (*this->displayJoints)
+				{
+					rgbWithJoints.copyTo(rgbmat);
+				}
+				//draw rectangle
+				this->draw_person_rect(rgbmat, jointsArray);
+			}
+		}
+		else			//detect with astra sdk
+		{
+			if (!this->jointsData.empty())
+			{
+				this->draw_person_rect(rgbmat);
+				//display joints
+				if (NULL != this->displayJoints
+					&& *this->displayJoints)
+					this->draw_skeleton(rgbmat);
+			}
+			else
+			{
+				this->clearJointFrame();
+			}
+		}
+		
 		this->numInQueue -= 1;
 		this->numInQueueMutex.unlock();
 		display.display_rgb_frame(rgbmat);
@@ -145,6 +205,26 @@ void Processer::draw_person_rect(cv::Mat& mat)
 	cv::rectangle(mat, rect, cv::Scalar(0, 255, 0), 3, cv::LINE_8, 0);
 }
 
+void Processer::draw_person_rect(cv::Mat& mat, float* jointsArray)
+{
+	if (NULL == jointsArray)
+		return;
+	int x_l = WIDTH, x_h = 0, y_l = HEIGHT, y_h = 0;
+	for (int i = 0; i < 18; i++)
+	{
+		if (0 == jointsArray[3 * i + 2])
+			continue;
+		int x = jointsArray[3 * i];
+		int y = jointsArray[3 * i+1];
+		x_l = MIN(x, x_l);
+		x_h = MAX(x, x_h);
+		y_l = MIN(y, y_l);
+		y_h = MAX(y, y_h);
+	}
+	cv::Rect rect(x_l, y_l, x_h - x_l, y_h - y_l);
+	cv::rectangle(mat, rect, cv::Scalar(0, 255, 0), 3, cv::LINE_8, 0);
+}
+
 void Processer::draw_skeleton(cv::Mat& mat)
 {
 	drawLine(mat, this->jointsData, astra::JointType::Head, astra::JointType::Neck);
@@ -178,6 +258,7 @@ void Processer::draw_skeleton(cv::Mat& mat)
 	}
 }
 
+
 void Processer::drawLine(cv::Mat& mat, std::map<astra::JointType, astra::Vector2i> jointsPosition, astra::JointType v1, astra::JointType v2)
 {
 	cv::Scalar color_line = cv::Scalar(255, 0, 0);
@@ -187,6 +268,30 @@ void Processer::drawLine(cv::Mat& mat, std::map<astra::JointType, astra::Vector2
 	cv::Point p1 = cv::Point(WIDTH-jointsPosition[v1].x, jointsPosition[v1].y);
 	cv::Point p2 = cv::Point(WIDTH-jointsPosition[v2].x, jointsPosition[v2].y);
 	line(mat, p1, p2, color_line, 5);
+}
+
+void Processer::clearJointFrame()
+{
+	while (!this->jointFrameData.empty())
+	{
+		this->jointFrameData.pop();
+	}
+}
+
+void Processer::addJointFrame()
+{
+	for (astra::JointType t = astra::JointType::Head; t <= astra::JointType::Neck; t = (astra::JointType)((int)t + 1))
+	{
+
+		if (0 == this->jointsData.count(t))
+		{
+
+		}
+	}
+	if (this->jointFrameData.size() >= MAX_FRAME)
+	{
+		this->jointFrameData.size();
+	}
 }
 
 void camera_fresh(int* numInQueue, mutable std::shared_mutex* mutex, bool* isThreadAlive)

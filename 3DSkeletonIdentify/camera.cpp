@@ -84,4 +84,3 @@ void MultiFrameListener::on_frame_ready(astra::StreamReader& reader,
 	*this->numInQueue += i;
 
 }
-

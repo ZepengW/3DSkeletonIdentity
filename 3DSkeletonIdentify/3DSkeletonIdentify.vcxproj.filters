@@ -42,6 +42,12 @@
     <ClInclude Include="display_opencv.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="python_api.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="joint_by_openpose.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3DSkeletonIdentify.cpp">
@@ -60,6 +66,12 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="display_opencv.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="python_api.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="joint_by_openpose.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

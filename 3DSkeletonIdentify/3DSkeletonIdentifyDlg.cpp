@@ -129,6 +129,8 @@ BOOL CMy3DSkeletonIdentifyDlg::OnInitDialog()
 	cv::waitKey(10);
 	//隐藏控件
 	GetDlgItem(BtnDisplayJoint)->ShowWindow(false);
+	//初始化算法选择
+	((CButton*)GetDlgItem(RadioOpenpose))->SetCheck(TRUE);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 
@@ -198,11 +200,19 @@ void CMy3DSkeletonIdentifyDlg::OnBnClickedBtnstart()
 		GetDlgItem(BtnStart)->EnableWindow(1);
 		SetDlgItemText(BtnStart, L"开始");
 		GetDlgItem(BtnDisplayJoint)->ShowWindow(false);
+		GetDlgItem(RadioAstra)->EnableWindow(1);
+		GetDlgItem(RadioOpenpose)->EnableWindow(1);
 	}
 	else
 	{
 		GetDlgItem(BtnStart)->EnableWindow(0);
-		this->processer = new Processer(&this->displayJoints);
+		int alg = 0;
+		//判断算法选择
+		if (IsDlgButtonChecked(RadioAstra))
+			alg = 1;
+		this->processer = new Processer(&this->displayJoints,alg);
+		GetDlgItem(RadioAstra)->EnableWindow(0);
+		GetDlgItem(RadioOpenpose)->EnableWindow(0);
 		this->processer->begin_detect();
 		GetDlgItem(BtnStart)->EnableWindow(1);
 		SetDlgItemText(BtnStart, L"停止");
