@@ -114,16 +114,16 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_WINDOWS;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(SolutionDir)/AstraSDK/include;$(SolutionDir)opencv/include;$(SolutionDir)jsonxx/include;$(SolutionDir)python39/include;$(SolutionDir)openpose/include;$(SolutionDir)openpose/3rdparty/windows/caffe/include;$(SolutionDir)openpose/3rdparty/windows/caffe/include2;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\include;$(SolutionDir)openpose/3rdparty/windows/caffe3rdparty/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)/AstraSDK/include;$(SolutionDir)opencv/include;$(SolutionDir)jsonxx/include;$(SolutionDir)openpose/include;$(SolutionDir)openpose/3rdparty/windows/caffe/include;$(SolutionDir)openpose/3rdparty/windows/caffe/include2;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\include;$(SolutionDir)openpose/3rdparty/windows/caffe3rdparty/include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalLibraryDirectories>$(SolutionDir)AstraSDK/lib;$(SolutionDir)AstraSDK/lib/Plugins;$(SolutionDir)opencv\x64\vc15\lib;$(SolutionDir)Python39/libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>astra_core_api.lib;astra_core.lib;astra.lib;opencv_world420d.lib;python3_d.lib;python39_d.lib;$(SolutionDir)\openpose\lib\openposed.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\lib\x64\cudart_static.lib;$(SolutionDir)\openpose\3rdparty\windows\caffe3rdparty\lib\gflagsd.lib;$(SolutionDir)\openpose\3rdparty\windows\caffe3rdparty\lib\glogd.lib;$(SolutionDir)\openpose\3rdparty\windows\caffe\lib\caffe-d.lib;$(SolutionDir)\openpose\3rdparty\windows\caffe\lib\caffeproto-d.lib;$(SolutionDir)\openpose\3rdparty\windows\caffe\lib\caffeproto.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)AstraSDK/lib;$(SolutionDir)AstraSDK/lib/Plugins;$(SolutionDir)opencv\x64\vc15\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>astra_core_api.lib;astra_core.lib;astra.lib;opencv_world420d.lib;$(SolutionDir)\openpose\lib\openposed.lib;C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.1\lib\x64\cudart_static.lib;$(SolutionDir)\openpose\3rdparty\windows\caffe3rdparty\lib\gflagsd.lib;$(SolutionDir)\openpose\3rdparty\windows\caffe3rdparty\lib\glogd.lib;$(SolutionDir)\openpose\3rdparty\windows\caffe\lib\caffe-d.lib;$(SolutionDir)\openpose\3rdparty\windows\caffe\lib\caffeproto-d.lib;$(SolutionDir)\openpose\3rdparty\windows\caffe\lib\caffeproto.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <Midl>
       <MkTypLibCompatible>false</MkTypLibCompatible>
@@ -191,11 +191,11 @@
   <ItemGroup>
     <ClInclude Include="3DSkeletonIdentify.h" />
     <ClInclude Include="3DSkeletonIdentifyDlg.h" />
+    <ClInclude Include="calculate_feature.h" />
     <ClInclude Include="camera.h" />
     <ClInclude Include="display_opencv.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="joint_by_openpose.h" />
-    <ClInclude Include="python_api.h" />
     <ClInclude Include="main_process.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
@@ -204,10 +204,10 @@
   <ItemGroup>
     <ClCompile Include="3DSkeletonIdentify.cpp" />
     <ClCompile Include="3DSkeletonIdentifyDlg.cpp" />
+    <ClCompile Include="calculate_feature.cpp" />
     <ClCompile Include="camera.cpp" />
     <ClCompile Include="display_opencv.cpp" />
     <ClCompile Include="joint_by_openpose.cpp" />
-    <ClCompile Include="python_api.cpp" />
     <ClCompile Include="main_process.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

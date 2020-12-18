@@ -2,6 +2,7 @@
 #include <astra/astra.hpp>
 #include <thread>
 #include "joint_by_openpose.h"
+#include "calculate_feature.h"
 
 #define WIDTH 640
 #define HEIGHT 480
@@ -67,6 +68,7 @@ Processer::~Processer()
 	//data release
 	if (NULL != this->rgbData)
 		free(this->rgbData);
+	this->clearJointFrame();
 }
 
 void Processer::camera_initialize(std::string license, ProcesserWorkMode mode, int width, int height)
@@ -142,6 +144,13 @@ void Processer::detect(bool* isThreadAlive)
 				}
 				//draw rectangle
 				this->draw_person_rect(rgbmat, jointsArray);
+
+				this->addJointFrame(jointsArray);
+				//std::string s =this->jointMatch.calculate_label(this->jointFrameData);
+				std::string label;
+				get_joints_id(this->jointFrameData, 15, label);
+				putText(rgbmat, label , cv::Point(0, 240), cv::FONT_HERSHEY_COMPLEX, 1,
+					cv::Scalar(0, 0, 255), 5, 8, 0);
 			}
 		}
 		else			//detect with astra sdk
@@ -274,23 +283,26 @@ void Processer::clearJointFrame()
 {
 	while (!this->jointFrameData.empty())
 	{
+		if (this->jointFrameData.front() != NULL)
+		{
+			free(this->jointFrameData.front());
+		}
 		this->jointFrameData.pop();
 	}
 }
 
-void Processer::addJointFrame()
+void Processer::addJointFrame(float* jointArray)
 {
-	for (astra::JointType t = astra::JointType::Head; t <= astra::JointType::Neck; t = (astra::JointType)((int)t + 1))
+	if (NULL == jointArray)
 	{
-
-		if (0 == this->jointsData.count(t))
-		{
-
-		}
+		this->clearJointFrame();
 	}
-	if (this->jointFrameData.size() >= MAX_FRAME)
+	this->jointFrameData.push(jointArray);
+	while (this->jointFrameData.size() > MAX_FRAME)
 	{
-		this->jointFrameData.size();
+		if (NULL != this->jointFrameData.front())
+			free(this->jointFrameData.front());
+		this->jointFrameData.pop();
 	}
 }
 

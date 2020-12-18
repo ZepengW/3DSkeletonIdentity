@@ -42,10 +42,10 @@
     <ClInclude Include="display_opencv.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="python_api.h">
+    <ClInclude Include="joint_by_openpose.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="joint_by_openpose.h">
+    <ClInclude Include="calculate_feature.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
@@ -68,10 +68,10 @@
     <ClCompile Include="display_opencv.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="python_api.cpp">
+    <ClCompile Include="joint_by_openpose.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="joint_by_openpose.cpp">
+    <ClCompile Include="calculate_feature.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

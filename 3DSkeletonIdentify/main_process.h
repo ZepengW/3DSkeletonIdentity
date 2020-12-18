@@ -4,7 +4,6 @@
 #include <shared_mutex>
 #include <opencv2/opencv.hpp>
 #include "display_opencv.h"
-#include "python_api.h"
 #include <queue>
 
 enum ProcesserWorkMode {
@@ -37,7 +36,7 @@ private:
 	mutable std::shared_mutex numInQueueMutex;
 	bool isThreadAlive;
 	//存储骨骼序列连续帧
-	std::queue<int[18*2]> jointFrameData;
+	std::queue<float*> jointFrameData;
 
 	//astra sdk 相关
 	astra::StreamSet* streamSet;
@@ -45,8 +44,6 @@ private:
 	MultiFrameListener* listener;
 	// open cv 显示类
 	Display display;
-	// python api
-	JointMatch jointMatch;
 	//openpose 调用类
 	void* jointByOpenpose;
 	
@@ -63,5 +60,5 @@ private:
 	//清空连续骨骼帧队列
 	void clearJointFrame();
 	//向骨骼帧队列中增加帧
-	void addJointFrame();
+	void addJointFrame(float* jointArray);
 };
