@@ -38,4 +38,9 @@ public:
 	Processer* processer = NULL;
 	bool displayJoints;
 	
+	CEdit editLabel;
+	CButton btnLogIn;
+	CStatic staticText;
+	afx_msg void OnBnClickedBtnlogin();
+	CEdit editLog;
 };

@@ -28,6 +28,7 @@ public:
 	void camera_initialize(std::string license, ProcesserWorkMode mode, int width = 640, int height = 480);
 	void detect(bool* isThreadAlive);
 	void begin_detect();
+	int begin_collect(std::string label);
 private:
 	void* rgbData;
 	std::map<astra::JointType, astra::Vector2i> jointsData;
@@ -37,6 +38,15 @@ private:
 	bool isThreadAlive;
 	//存储骨骼序列连续帧
 	std::queue<float*> jointFrameData;
+	//socket cummunicate
+	std::string messOut;
+	bool messIsNew;
+	std::string currentLabel;
+	float currentScore;
+	//collect data flag
+	bool collectMode;
+	bool collectBegin;
+	std::string collectLabel;
 
 	//astra sdk 相关
 	astra::StreamSet* streamSet;
@@ -53,7 +63,7 @@ private:
 	//detect person with astra sdk
 	void draw_person_rect(cv::Mat& mat);
 	//detect person with openpose  
-	void draw_person_rect(cv::Mat& mat,float* jointsArray);
+	int* draw_person_rect(cv::Mat& mat,float* jointsArray);
 	//draw skeleton with astra sdk
 	void draw_skeleton(cv::Mat& mat);
 	void drawLine(cv::Mat& frame, std::map<astra::JointType, astra::Vector2i> jointsPosition, astra::JointType v1, astra::JointType v2);
@@ -61,4 +71,10 @@ private:
 	void clearJointFrame();
 	//向骨骼帧队列中增加帧
 	void addJointFrame(float* jointArray);
+	//删除 n 个骨骼帧队列中元素
+	void deleteJointFrame(int n);
+
+	//socket
+	void* socket_client;
+
 };

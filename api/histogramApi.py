@@ -338,7 +338,7 @@ def loadcenter(center_path,_MIDDLE):
 	return center_point,center_angle,center_delta_point,center_delta_angle,center_traj
 
 def gen_vec_from_feature(featureStr):
-	center_path="./api/"
+	center_path="./"
 	_MIDDLE=180
 	# input: featureStr (same as file)
 	center_point, center_angle, center_delta_point, center_delta_angle, center_traj = loadcenter(center_path, _MIDDLE)

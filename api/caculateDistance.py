@@ -18,11 +18,7 @@ def get_sample_label(v_r,vs):
         sim = cos_sim(v_r,vec)
         sims.append(sim)
         labels.append(label)
-    result=''
     sim_args = np.argsort(-np.array(sims));
-    print(sim_args[0])
-    print(labels)
-    print(sims)
     return labels[sim_args[0]], sims[sim_args[0]]
 
 if __name__ == '__main__':

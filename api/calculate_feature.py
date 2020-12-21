@@ -4,8 +4,24 @@ import pickle
 from readjsonApi import get_feature_from_joints
 from histogramApi import gen_vec_from_feature
 from caculateDistance import get_sample_label
+#¼ì²â
+def get_label_score(skeletonFrameList,vectors):
+    featureStr = get_feature_from_joints(skeletonFrameList)
+    vecList = gen_vec_from_feature(featureStr)
+    label, sim = get_sample_label(vecList, vectors)
+    return label, sim
 
-
+#Â¼ÈëÊý¾Ý
+def save_label(skeletonFrameList,datasetDir,label):
+    featureStr = get_feature_from_joints(skeletonFrameList)
+    vecList = gen_vec_from_feature(featureStr)
+    files = os.listdir(datasetDir)
+    videoIdList = [int(fName.split('v')[1].split('.')[0]) for fName in files if 'p'+label+'v' in fName]
+    vId = max(videoIdList)+1
+    saveFileName = 'p'+label+'v'+str(vId)+'.txt'
+    outputpath = os.path.join(datasetDir,saveFileName)
+    pickle.dump(vecList, open(outputpath, 'wb'))
+    return saveFileName
 
 def get_joints_array(jointFilePath):
     file = open(jointFilePath)

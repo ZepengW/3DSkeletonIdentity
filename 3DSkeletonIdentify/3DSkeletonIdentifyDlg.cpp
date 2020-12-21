@@ -70,6 +70,10 @@ CMy3DSkeletonIdentifyDlg::~CMy3DSkeletonIdentifyDlg()
 void CMy3DSkeletonIdentifyDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_Control(pDX, EditLabel, editLabel);
+	DDX_Control(pDX, BtnLogIn, btnLogIn);
+	DDX_Control(pDX, StaticText, staticText);
+	DDX_Control(pDX, IDC_EDIT2, editLog);
 }
 
 BEGIN_MESSAGE_MAP(CMy3DSkeletonIdentifyDlg, CDialogEx)
@@ -78,6 +82,7 @@ BEGIN_MESSAGE_MAP(CMy3DSkeletonIdentifyDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(BtnStart, &CMy3DSkeletonIdentifyDlg::OnBnClickedBtnstart)
 	ON_BN_CLICKED(BtnDisplayJoint, &CMy3DSkeletonIdentifyDlg::OnBnClickedBtndisplayjoint)
+	ON_BN_CLICKED(BtnLogIn, &CMy3DSkeletonIdentifyDlg::OnBnClickedBtnlogin)
 END_MESSAGE_MAP()
 
 
@@ -129,6 +134,10 @@ BOOL CMy3DSkeletonIdentifyDlg::OnInitDialog()
 	cv::waitKey(10);
 	//隐藏控件
 	GetDlgItem(BtnDisplayJoint)->ShowWindow(false);
+	editLabel.ShowWindow(false);
+	staticText.ShowWindow(false);
+	btnLogIn.ShowWindow(false);
+	
 	//初始化算法选择
 	((CButton*)GetDlgItem(RadioOpenpose))->SetCheck(TRUE);
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
@@ -199,6 +208,9 @@ void CMy3DSkeletonIdentifyDlg::OnBnClickedBtnstart()
 		imshow("Rgb", front);
 		GetDlgItem(BtnStart)->EnableWindow(1);
 		SetDlgItemText(BtnStart, L"开始");
+		editLabel.ShowWindow(false);
+		staticText.ShowWindow(false);
+		btnLogIn.ShowWindow(false);
 		GetDlgItem(BtnDisplayJoint)->ShowWindow(false);
 		GetDlgItem(RadioAstra)->EnableWindow(1);
 		GetDlgItem(RadioOpenpose)->EnableWindow(1);
@@ -217,6 +229,9 @@ void CMy3DSkeletonIdentifyDlg::OnBnClickedBtnstart()
 		GetDlgItem(BtnStart)->EnableWindow(1);
 		SetDlgItemText(BtnStart, L"停止");
 		GetDlgItem(BtnDisplayJoint)->ShowWindow(true);
+		editLabel.ShowWindow(true);
+		staticText.ShowWindow(true);
+		btnLogIn.ShowWindow(true);
 	}
 	
 	
@@ -239,4 +254,17 @@ void CMy3DSkeletonIdentifyDlg::OnBnClickedBtndisplayjoint()
 		this->displayJoints = false;
 		SetDlgItemText(BtnDisplayJoint, L"显示骨骼");
 	}
+}
+
+
+void CMy3DSkeletonIdentifyDlg::OnBnClickedBtnlogin()
+{
+	// 录入身份信息
+	if (editLabel.GetWindowTextLengthW() == 0)
+		return;
+	if (NULL == this->processer)
+		return;
+	CString label;
+	editLabel.GetWindowTextW(label);
+	this->processer->begin_collect(std::string(CW2A(label.GetString())));
 }

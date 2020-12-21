@@ -3,6 +3,7 @@
 #include <thread>
 #include "joint_by_openpose.h"
 #include "calculate_feature.h"
+#include "tcp_client.h"
 
 #define WIDTH 640
 #define HEIGHT 480
@@ -10,6 +11,7 @@
 #define MAX_FRAME 30	//对于骨骼步态信息提取的限制
 
 void camera_fresh(int* numInQueue, mutable std::shared_mutex* mutex, bool* isThreadAlive);
+void check_message(std::string* mess, bool* mess_new, std::string* cLabel, float* cScore);
 
 Processer::Processer(bool* displayJoints, int algrothrim) :display(WIDTH, HEIGHT)
 {
@@ -22,8 +24,17 @@ Processer::Processer(bool* displayJoints, int algrothrim) :display(WIDTH, HEIGHT
 	this->streamSet = NULL;
 	this->listener = NULL;
 	this->displayJoints = displayJoints;
+
+	this->currentLabel = "";
+	this->currentScore = 0.0;
+	this->messIsNew = false;
+	this->messOut = "";
+
+	this->collectMode = false;
+	this->collectBegin = false;
+	this->collectLabel = "";
 	
-	//openpose 
+	//openpose
 	if (0 == algrothrim)
 	{
 		this->jointByOpenpose = new JointByOpenpose();
@@ -34,6 +45,11 @@ Processer::Processer(bool* displayJoints, int algrothrim) :display(WIDTH, HEIGHT
 		this->jointByOpenpose = NULL;
 		camera_initialize("license", ProcesserWorkMode::RGB_BODY, WIDTH, HEIGHT);
 	}
+	//socket
+	this->socket_client = new TcpClient("127.0.0.1", 1996,&this->messOut,&this->messIsNew);
+	//recv listener
+	std::thread p = std::thread(check_message, &this->messOut, &this->messIsNew, &this->currentLabel, &this->currentScore);
+	p.detach();
 }
 
 Processer::~Processer()
@@ -69,6 +85,12 @@ Processer::~Processer()
 	if (NULL != this->rgbData)
 		free(this->rgbData);
 	this->clearJointFrame();
+	//socket release
+	if (NULL != this->socket_client)
+	{
+		delete this->socket_client;
+		this->socket_client = NULL;
+	}
 }
 
 void Processer::camera_initialize(std::string license, ProcesserWorkMode mode, int width, int height)
@@ -135,22 +157,70 @@ void Processer::detect(bool* isThreadAlive)
 		{
 			float* jointsArray = (float*)malloc(18 * 3 * sizeof(float));
 			cv::Mat rgbWithJoints = cv::Mat(HEIGHT, WIDTH, CV_8UC3);
+			//detect person/joints
 			if (jointMethod->getJointsFromRgb(rgbmat, rgbWithJoints, jointsArray))
 			{
-
 				if (*this->displayJoints)
 				{
 					rgbWithJoints.copyTo(rgbmat);
 				}
 				//draw rectangle
-				this->draw_person_rect(rgbmat, jointsArray);
+				int* loc = this->draw_person_rect(rgbmat, jointsArray);
+				if (NULL != loc)
+				{
+					if (this->collectMode && !this->collectBegin)
+					{
+						this->clearJointFrame();
+						this->collectBegin = true;
+					}
+					this->addJointFrame(jointsArray);
 
-				this->addJointFrame(jointsArray);
-				//std::string s =this->jointMatch.calculate_label(this->jointFrameData);
-				std::string label;
-				get_joints_id(this->jointFrameData, 15, label);
-				putText(rgbmat, label , cv::Point(0, 240), cv::FONT_HERSHEY_COMPLEX, 1,
-					cv::Scalar(0, 0, 255), 5, 8, 0);
+					if (this->jointFrameData.size() > 20 && this->currentScore < 0.7&& !this->collectMode)
+					{	
+						//帧数大于20 ，之前判断的置信度小于0.7 ，且为检测模式
+						std::string labelScore;
+						((TcpClient*)this->socket_client)->query_skeleton_label(this->jointFrameData, this->messOut, this->messIsNew);
+						this->deleteJointFrame(10);
+					}
+					else if(this->jointFrameData.size()==MAX_FRAME&&this->collectMode&&this->collectBegin)
+					{
+						//上传数据
+						((TcpClient*)this->socket_client)->collect_skeleton_label(this->jointFrameData, this->collectLabel, this->messOut, this->messIsNew);
+						this->clearJointFrame();
+						this->collectMode = false;
+						this->collectBegin = false;
+					}
+					//convert label and score to string , and show
+					std::string label;
+					if (this->currentScore > 0.5)
+						label = this->currentLabel + ":" + std::to_string(this->currentScore);
+					else if (this->currentScore == 0.0)
+						label = "computing";
+					else
+						label = "unknow";
+					if(!this->collectMode)	//don't show label in collect mode 
+						putText(rgbmat, label, cv::Point(loc[0], loc[2]), cv::FONT_HERSHEY_COMPLEX, 1,
+							cv::Scalar(0, 0, 255), 1, 8, 0);
+					free(loc);
+					loc = NULL;
+				}
+			}
+			else //didn't detect person joints 
+			{
+				this->currentLabel = "";
+				this->currentScore = 0.0;
+				if (this->jointFrameData.size() >= 15)
+				{
+					//上传数据
+					((TcpClient*)this->socket_client)->collect_skeleton_label(this->jointFrameData, this->collectLabel, this->messOut, this->messIsNew);
+					this->clearJointFrame();
+					this->collectMode = false;
+					this->collectBegin = false;
+				}
+				else
+				{//无效数据
+
+				}
 			}
 		}
 		else			//detect with astra sdk
@@ -167,8 +237,7 @@ void Processer::detect(bool* isThreadAlive)
 			{
 				this->clearJointFrame();
 			}
-		}
-		
+		}	
 		this->numInQueue -= 1;
 		this->numInQueueMutex.unlock();
 		display.display_rgb_frame(rgbmat);
@@ -179,6 +248,14 @@ void Processer::begin_detect()
 {
 	std::thread p = std::thread(&Processer::detect,this,&this->isThreadAlive);
 	p.detach();
+}
+
+int Processer::begin_collect(std::string label)
+{
+	this->collectMode = true;
+	this->collectBegin = false;
+	this->collectLabel = label;
+	return 0;
 }
 
 void Processer::convert_astrargb_to_mat(cv::Mat& outputMat)
@@ -214,10 +291,10 @@ void Processer::draw_person_rect(cv::Mat& mat)
 	cv::rectangle(mat, rect, cv::Scalar(0, 255, 0), 3, cv::LINE_8, 0);
 }
 
-void Processer::draw_person_rect(cv::Mat& mat, float* jointsArray)
+int* Processer::draw_person_rect(cv::Mat& mat, float* jointsArray)
 {
 	if (NULL == jointsArray)
-		return;
+		return NULL;
 	int x_l = WIDTH, x_h = 0, y_l = HEIGHT, y_h = 0;
 	for (int i = 0; i < 18; i++)
 	{
@@ -232,6 +309,12 @@ void Processer::draw_person_rect(cv::Mat& mat, float* jointsArray)
 	}
 	cv::Rect rect(x_l, y_l, x_h - x_l, y_h - y_l);
 	cv::rectangle(mat, rect, cv::Scalar(0, 255, 0), 3, cv::LINE_8, 0);
+	int* r = (int*)malloc(4 * sizeof(int));
+	r[0] = x_l;
+	r[1] = x_h;
+	r[2] = y_l;
+	r[3] = y_h;
+	return r;
 }
 
 void Processer::draw_skeleton(cv::Mat& mat)
@@ -306,6 +389,21 @@ void Processer::addJointFrame(float* jointArray)
 	}
 }
 
+void Processer::deleteJointFrame(int n)
+{
+	int count = 0;
+	while (!this->jointFrameData.empty()&&
+		count < n)
+	{
+		if (this->jointFrameData.front() != NULL)
+		{
+			free(this->jointFrameData.front());
+		}
+		this->jointFrameData.pop();
+		count++;
+	}
+}
+
 void camera_fresh(int* numInQueue, mutable std::shared_mutex* mutex, bool* isThreadAlive)
 {
 	while (*isThreadAlive)
@@ -314,5 +412,35 @@ void camera_fresh(int* numInQueue, mutable std::shared_mutex* mutex, bool* isThr
 		if (*numInQueue < MAX_QUEUE)
 			astra_update();
 		mutex->unlock();
+	}
+}
+
+void check_message(std::string* mess, bool* mess_new, std::string* cLabel, float* cScore)
+{
+	while (1)
+	{
+		if (NULL == mess ||
+			NULL == mess_new ||
+			NULL == cLabel ||
+			NULL == cScore )
+			return;
+		if (!*mess_new)
+			continue;
+		const char* mess_c = mess->c_str();
+		char mess_type = mess_c[0];
+		
+		if ('L' == mess_type)	// 返回的是标签
+		{
+			// get label
+			std::string::size_type posL = mess->find(':');
+			if (posL == mess->npos)
+				return;
+			*cLabel = mess->substr(1, posL - 1);
+			// get score
+			std::string::size_type posS = mess->find(':', posL);
+			if (posS == mess->npos)
+				return;
+			*cScore = atof(mess->substr(posL + 1, posS - posL - 1).c_str());
+		}
 	}
 }

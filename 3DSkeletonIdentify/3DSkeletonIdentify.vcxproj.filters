@@ -48,6 +48,9 @@
     <ClInclude Include="calculate_feature.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="tcp_client.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3DSkeletonIdentify.cpp">
@@ -72,6 +75,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="calculate_feature.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="tcp_client.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
