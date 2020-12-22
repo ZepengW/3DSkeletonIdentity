@@ -11,7 +11,7 @@
 #define MAX_FRAME 30	//对于骨骼步态信息提取的限制
 
 void camera_fresh(int* numInQueue, mutable std::shared_mutex* mutex, bool* isThreadAlive);
-void check_message(std::string* mess, bool* mess_new, std::string* cLabel, float* cScore);
+void check_message(std::string* mess, bool* mess_new, std::string* cLabel, float* cScore , bool* isAlive);
 
 Processer::Processer(bool* displayJoints, int algrothrim) :display(WIDTH, HEIGHT)
 {
@@ -48,7 +48,7 @@ Processer::Processer(bool* displayJoints, int algrothrim) :display(WIDTH, HEIGHT
 	//socket
 	this->socket_client = new TcpClient("127.0.0.1", 1996,&this->messOut,&this->messIsNew);
 	//recv listener
-	std::thread p = std::thread(check_message, &this->messOut, &this->messIsNew, &this->currentLabel, &this->currentScore);
+	std::thread p = std::thread(check_message, &this->messOut, &this->messIsNew, &this->currentLabel, &this->currentScore,&this->isThreadAlive);
 	p.detach();
 }
 
@@ -199,8 +199,8 @@ void Processer::detect(bool* isThreadAlive)
 					else
 						label = "unknow";
 					if(!this->collectMode)	//don't show label in collect mode 
-						putText(rgbmat, label, cv::Point(loc[0], loc[2]), cv::FONT_HERSHEY_COMPLEX, 1,
-							cv::Scalar(0, 0, 255), 1, 8, 0);
+						putText(rgbmat, label, cv::Point(loc[0], loc[2]), cv::FONT_HERSHEY_COMPLEX, 0.7,
+							cv::Scalar(0, 0, 255), 2, 8, 0);
 					free(loc);
 					loc = NULL;
 				}
@@ -415,9 +415,9 @@ void camera_fresh(int* numInQueue, mutable std::shared_mutex* mutex, bool* isThr
 	}
 }
 
-void check_message(std::string* mess, bool* mess_new, std::string* cLabel, float* cScore)
+void check_message(std::string* mess, bool* mess_new, std::string* cLabel, float* cScore, bool* isAlive)
 {
-	while (1)
+	while (*isAlive)
 	{
 		if (NULL == mess ||
 			NULL == mess_new ||

@@ -15,18 +15,18 @@ TcpClient::TcpClient(const char* servIp, int servPort, std::string* message, boo
 	this->servAddr.sin_port = htons(servPort);
 	inet_pton(AF_INET, servIp, &this->servAddr.sin_addr);
 	this->socketClient = socket(AF_INET, SOCK_STREAM, 0);
-
+	this->err = 0;
+	state = 0;
 	if (connect(this->socketClient, (SOCKADDR*)&this->servAddr, sizeof(SOCKADDR)) == SOCKET_ERROR)
 	{
+		this->err = SOCKET_ERROR;
 		WSACleanup();
+		return;
 	}
 	else
 	{
 
 	}
-	err = 0;
-	state = 0;
-
 	std::thread p = std::thread(recv_socket, this->socketClient, message, isNew);
 	p.detach();
 
@@ -49,6 +49,8 @@ int TcpClient::connect_socket()
 
 int TcpClient::query_skeleton_label(std::queue<float*> skeletonFrames, std::string& mess, bool& mess_new)
 {
+	if (0 != this->err)
+		return -1;
 	std::string sendData;
 	while (0 != skeletonFrames.size())
 	{
@@ -73,6 +75,8 @@ int TcpClient::query_skeleton_label(std::queue<float*> skeletonFrames, std::stri
 
 int TcpClient::collect_skeleton_label(std::queue<float*> skeletonFrames, std::string label, std::string& mess, bool& mess_new)
 {
+	if (0 != this->err)
+		return -1;
 	std::string sendData;
 	while (0 != skeletonFrames.size())
 	{
