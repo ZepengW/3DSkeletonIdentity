@@ -66,13 +66,16 @@ private:
 	int* draw_person_rect(cv::Mat& mat,float* jointsArray);
 	//draw skeleton with astra sdk
 	void draw_skeleton(cv::Mat& mat);
-	void drawLine(cv::Mat& frame, std::map<astra::JointType, astra::Vector2i> jointsPosition, astra::JointType v1, astra::JointType v2);
+	void drawLine(cv::Mat& frame, std::map<astra::JointType, astra::Vector2i> &jointsPosition, astra::JointType v1, astra::JointType v2);
 	//清空连续骨骼帧队列
 	void clearJointFrame();
 	//向骨骼帧队列中增加帧
 	void addJointFrame(float* jointArray);
 	//删除 n 个骨骼帧队列中元素
 	void deleteJointFrame(int n);
+
+	//convert astra sdk joints to Openpose Joints
+	int convert_joints_astra_to_openpose(float* jointArray);
 
 	//socket
 	void* socket_client;

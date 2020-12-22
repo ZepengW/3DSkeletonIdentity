@@ -51,7 +51,7 @@ void MultiFrameListener::get_joint_data(const astra::BodyFrame& bodyFrame)
 			if (status != astra::JointStatus::Tracked)
 				continue;
 			const auto& pose = joint.depth_position();
-			(*this->jointDataOutput)[type] = astra::Vector2i(pose.x, pose.y);
+			(*this->jointDataOutput)[type] = astra::Vector2i(640 -  pose.x, pose.y);
 		}
 	}
 }

@@ -125,6 +125,11 @@ void Processer::camera_initialize(std::string license, ProcesserWorkMode mode, i
 		mode_rgb.set_height(height);
 		this->streamReader->stream<astra::ColorStream>().set_mode(mode_rgb);
 		this->streamReader->stream<astra::ColorStream>().start();
+		auto mode_depth = this->streamReader->stream<astra::DepthStream>().mode();
+		mode_depth.set_width(width);
+		mode_depth.set_height(height);
+		this->streamReader->stream<astra::DepthStream>().set_mode(mode_depth);
+		this->streamReader->stream<astra::DepthStream>().start();
 		this->streamReader->stream<astra::BodyStream>().start();
 	}
 
@@ -153,63 +158,58 @@ void Processer::detect(bool* isThreadAlive)
 		
 		//检测骨骼点，标出人体框图
 		JointByOpenpose* jointMethod = (JointByOpenpose*)this->jointByOpenpose;
-		if (NULL != jointMethod)	//detect with openpose
+		float* jointsArray = NULL;
+		cv::Mat rgbWithJoints = cv::Mat(HEIGHT, WIDTH, CV_8UC3);
+		//选择检测方法
+		if (NULL != jointMethod)	
 		{
-			float* jointsArray = (float*)malloc(18 * 3 * sizeof(float));
-			cv::Mat rgbWithJoints = cv::Mat(HEIGHT, WIDTH, CV_8UC3);
-			//detect person/joints
-			if (jointMethod->getJointsFromRgb(rgbmat, rgbWithJoints, jointsArray))
+			//detect with openpose
+			jointsArray = (float*)malloc(18 * 3 * sizeof(float));
+			if (!jointMethod->getJointsFromRgb(rgbmat, rgbWithJoints, jointsArray))
 			{
-				if (*this->displayJoints)
-				{
-					rgbWithJoints.copyTo(rgbmat);
-				}
-				//draw rectangle
-				int* loc = this->draw_person_rect(rgbmat, jointsArray);
-				if (NULL != loc)
-				{
-					if (this->collectMode && !this->collectBegin)
-					{
-						this->clearJointFrame();
-						this->collectBegin = true;
-					}
-					this->addJointFrame(jointsArray);
-
-					if (this->jointFrameData.size() > 20 && this->currentScore < 0.7&& !this->collectMode)
-					{	
-						//帧数大于20 ，之前判断的置信度小于0.7 ，且为检测模式
-						std::string labelScore;
-						((TcpClient*)this->socket_client)->query_skeleton_label(this->jointFrameData, this->messOut, this->messIsNew);
-						this->deleteJointFrame(10);
-					}
-					else if(this->jointFrameData.size()==MAX_FRAME&&this->collectMode&&this->collectBegin)
-					{
-						//上传数据
-						((TcpClient*)this->socket_client)->collect_skeleton_label(this->jointFrameData, this->collectLabel, this->messOut, this->messIsNew);
-						this->clearJointFrame();
-						this->collectMode = false;
-						this->collectBegin = false;
-					}
-					//convert label and score to string , and show
-					std::string label;
-					if (this->currentScore > 0.5)
-						label = this->currentLabel + ":" + std::to_string(this->currentScore);
-					else if (this->currentScore == 0.0)
-						label = "computing";
-					else
-						label = "unknow";
-					if(!this->collectMode)	//don't show label in collect mode 
-						putText(rgbmat, label, cv::Point(loc[0], loc[2]), cv::FONT_HERSHEY_COMPLEX, 0.7,
-							cv::Scalar(0, 0, 255), 2, 8, 0);
-					free(loc);
-					loc = NULL;
-				}
+				free(jointsArray);
+				jointsArray = NULL;
 			}
-			else //didn't detect person joints 
+		}
+		else
+		{
+			//detect with astra sdk
+			if (!this->jointsData.empty())
 			{
-				this->currentLabel = "";
-				this->currentScore = 0.0;
-				if (this->jointFrameData.size() >= 15)
+				jointsArray = (float*)malloc(18 * 3 * sizeof(float));
+				rgbmat.copyTo(rgbWithJoints);
+				this->draw_skeleton(rgbWithJoints);
+				this->convert_joints_astra_to_openpose(jointsArray);
+			}
+		}
+		//判断是否有骨骼点
+		if (0 != jointsArray)
+		{
+			//detect person
+			if (*this->displayJoints)
+			{
+				//display joints
+				rgbWithJoints.copyTo(rgbmat);
+			}
+			//draw rectangle
+			int* loc = this->draw_person_rect(rgbmat, jointsArray);
+			if (NULL != loc)
+			{
+				if (this->collectMode && !this->collectBegin)
+				{
+					this->clearJointFrame();
+					this->collectBegin = true;
+				}
+				this->addJointFrame(jointsArray);
+
+				if (this->jointFrameData.size() > 20 && this->currentScore < 0.7 && !this->collectMode)
+				{
+					//帧数大于20 ，之前判断的置信度小于0.7 ，且为检测模式
+					std::string labelScore;
+					((TcpClient*)this->socket_client)->query_skeleton_label(this->jointFrameData, this->messOut, this->messIsNew);
+					this->deleteJointFrame(10);
+				}
+				else if (this->jointFrameData.size() == MAX_FRAME && this->collectMode && this->collectBegin)
 				{
 					//上传数据
 					((TcpClient*)this->socket_client)->collect_skeleton_label(this->jointFrameData, this->collectLabel, this->messOut, this->messIsNew);
@@ -217,27 +217,38 @@ void Processer::detect(bool* isThreadAlive)
 					this->collectMode = false;
 					this->collectBegin = false;
 				}
+				//convert label and score to string , and show
+				std::string label;
+				if (this->currentScore > 0.5)
+					label = this->currentLabel + ":" + std::to_string(this->currentScore);
+				else if (this->currentScore == 0.0)
+					label = "computing";
 				else
-				{//无效数据
-
-				}
+					label = "unknow";
+				if (!this->collectMode)	//don't show label in collect mode 
+					putText(rgbmat, label, cv::Point(loc[0], loc[2]), cv::FONT_HERSHEY_COMPLEX, 0.7,
+						cv::Scalar(0, 0, 255), 2, 8, 0);
+				free(loc);
+				loc = NULL;
 			}
 		}
-		else			//detect with astra sdk
+		else //didn't detect person joints 
 		{
-			if (!this->jointsData.empty())
+			this->currentLabel = "";
+			this->currentScore = 0.0;
+			if (this->jointFrameData.size() >= 15 && this->collectMode== true)
 			{
-				this->draw_person_rect(rgbmat);
-				//display joints
-				if (NULL != this->displayJoints
-					&& *this->displayJoints)
-					this->draw_skeleton(rgbmat);
+				//上传数据
+				((TcpClient*)this->socket_client)->collect_skeleton_label(this->jointFrameData, this->collectLabel, this->messOut, this->messIsNew);
+				this->clearJointFrame();
+				this->collectMode = false;
+				this->collectBegin = false;
 			}
 			else
-			{
-				this->clearJointFrame();
+			{//无效数据
+
 			}
-		}	
+		}
 		this->numInQueue -= 1;
 		this->numInQueueMutex.unlock();
 		display.display_rgb_frame(rgbmat);
@@ -351,14 +362,14 @@ void Processer::draw_skeleton(cv::Mat& mat)
 }
 
 
-void Processer::drawLine(cv::Mat& mat, std::map<astra::JointType, astra::Vector2i> jointsPosition, astra::JointType v1, astra::JointType v2)
+void Processer::drawLine(cv::Mat& mat, std::map<astra::JointType, astra::Vector2i> &jointsPosition, astra::JointType v1, astra::JointType v2)
 {
 	cv::Scalar color_line = cv::Scalar(255, 0, 0);
 	if (0 == jointsPosition.count(v1) ||
 		0 == jointsPosition.count(v2))
 		return;
-	cv::Point p1 = cv::Point(WIDTH-jointsPosition[v1].x, jointsPosition[v1].y);
-	cv::Point p2 = cv::Point(WIDTH-jointsPosition[v2].x, jointsPosition[v2].y);
+	cv::Point p1 = cv::Point(jointsPosition[v1].x, jointsPosition[v1].y);
+	cv::Point p2 = cv::Point(jointsPosition[v2].x, jointsPosition[v2].y);
 	line(mat, p1, p2, color_line, 5);
 }
 
@@ -402,6 +413,111 @@ void Processer::deleteJointFrame(int n)
 		this->jointFrameData.pop();
 		count++;
 	}
+}
+
+int Processer::convert_joints_astra_to_openpose(float* jointArray)
+{
+	if (NULL == jointArray)
+		return -1;
+	memset(jointArray, 0, 18 * 3 * sizeof(float));
+	if (0 != jointsData.count(astra::JointType::Head))
+	{
+		jointArray[0] = jointsData[astra::JointType::Head].x;
+		jointArray[1] = jointsData[astra::JointType::Head].y;
+		jointArray[2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::Neck))
+	{
+		int i = 1;
+		jointArray[3 * i] = jointsData[astra::JointType::Neck].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::Neck].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::RightShoulder))
+	{
+		int i = 2;
+		jointArray[3 * i] = jointsData[astra::JointType::RightShoulder].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::RightShoulder].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::RightElbow))
+	{
+		int i = 3;
+		jointArray[3 * i] = jointsData[astra::JointType::RightElbow].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::RightElbow].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::RightHand))
+	{
+		int i = 4;
+		jointArray[3 * i] = jointsData[astra::JointType::RightHand].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::RightHand].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::LeftShoulder))
+	{
+		int i = 5;
+		jointArray[3 * i] = jointsData[astra::JointType::LeftShoulder].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::LeftShoulder].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::LeftElbow))
+	{
+		int i = 6;
+		jointArray[3 * i] = jointsData[astra::JointType::LeftElbow].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::LeftElbow].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::LeftHand))
+	{
+		int i = 7;
+		jointArray[3 * i] = jointsData[astra::JointType::LeftHand].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::LeftHand].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::RightHip))
+	{
+		int i = 8;
+		jointArray[3 * i] = jointsData[astra::JointType::RightHip].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::RightHip].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::RightKnee))
+	{
+		int i = 9;
+		jointArray[3 * i] = jointsData[astra::JointType::RightKnee].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::RightKnee].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::RightFoot))
+	{
+		int i = 10;
+		jointArray[3 * i] = jointsData[astra::JointType::RightFoot].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::RightFoot].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::LeftHip))
+	{
+		int i = 11;
+		jointArray[3 * i] = jointsData[astra::JointType::LeftHip].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::LeftHip].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::LeftKnee))
+	{
+		int i = 12;
+		jointArray[3 * i] = jointsData[astra::JointType::LeftKnee].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::LeftKnee].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	if (0 != jointsData.count(astra::JointType::LeftFoot))
+	{
+		int i = 13;
+		jointArray[3 * i] = jointsData[astra::JointType::LeftFoot].x;
+		jointArray[3 * i + 1] = jointsData[astra::JointType::LeftFoot].y;
+		jointArray[3 * i + 2] = 1;
+	}
+	return 0;
 }
 
 void camera_fresh(int* numInQueue, mutable std::shared_mutex* mutex, bool* isThreadAlive)
