@@ -71,8 +71,6 @@ if __name__ == '__main__':
         conn,addr = server.s.accept()
         print("client connected")
         while 1:
-            if True == getattr(conn,'_closed'):
-                break
             data = ""
             data = conn.recv(100000)
             #process data to skeleton list
