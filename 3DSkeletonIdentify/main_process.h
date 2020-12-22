@@ -43,6 +43,7 @@ private:
 	bool messIsNew;
 	std::string currentLabel;
 	float currentScore;
+	mutable std::shared_mutex labelMutex;
 	//collect data flag
 	bool collectMode;
 	bool collectBegin;

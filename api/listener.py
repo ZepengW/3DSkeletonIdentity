@@ -85,6 +85,9 @@ if __name__ == '__main__':
             if(func_type=='Q'):
                 _thread.start_new_thread(detect_person,(data[1:],conn,vectors))
             elif(func_type=='L'):
-                _thread.start_new_thread(collect_data,(data[1:],conn,vectors))
+                collect_data(data[1:],conn,vectors)
+                print("reload dataset")
+                vectors = load_dataset(DATASETDIR)
+                print("reload dataset finish")
         print("connect close")
 

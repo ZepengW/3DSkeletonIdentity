@@ -8,10 +8,10 @@
 #define WIDTH 640
 #define HEIGHT 480
 #define MAX_QUEUE 1		//对于视频采集的限制
-#define MAX_FRAME 30	//对于骨骼步态信息提取的限制
+#define MAX_FRAME 60	//对于骨骼步态信息提取的限制
 
 void camera_fresh(int* numInQueue, mutable std::shared_mutex* mutex, bool* isThreadAlive);
-void check_message(std::string* mess, bool* mess_new, std::string* cLabel, float* cScore , bool* isAlive);
+void check_message(std::string* mess, bool* mess_new, std::string* cLabel, float* cScore , bool* isAlive, mutable std::shared_mutex* mutexs);
 
 Processer::Processer(bool* displayJoints, int algrothrim) :display(WIDTH, HEIGHT)
 {
@@ -48,7 +48,7 @@ Processer::Processer(bool* displayJoints, int algrothrim) :display(WIDTH, HEIGHT
 	//socket
 	this->socket_client = new TcpClient("127.0.0.1", 1996,&this->messOut,&this->messIsNew);
 	//recv listener
-	std::thread p = std::thread(check_message, &this->messOut, &this->messIsNew, &this->currentLabel, &this->currentScore,&this->isThreadAlive);
+	std::thread p = std::thread(check_message, &this->messOut, &this->messIsNew, &this->currentLabel, &this->currentScore,&this->isThreadAlive,&this->labelMutex);
 	p.detach();
 }
 
@@ -201,13 +201,13 @@ void Processer::detect(bool* isThreadAlive)
 					this->collectBegin = true;
 				}
 				this->addJointFrame(jointsArray);
+				
 
-				if (this->jointFrameData.size() > 20 && this->currentScore < 0.7 && !this->collectMode)
+				if (this->jointFrameData.size() %10 == 0 && this->currentScore < 0.7 && !this->collectMode)
 				{
-					//帧数大于20 ，之前判断的置信度小于0.7 ，且为检测模式
+					//帧数为10的倍数 ，之前判断的置信度小于0.7 ，且为检测模式
 					std::string labelScore;
 					((TcpClient*)this->socket_client)->query_skeleton_label(this->jointFrameData, this->messOut, this->messIsNew);
-					this->deleteJointFrame(10);
 				}
 				else if (this->jointFrameData.size() == MAX_FRAME && this->collectMode && this->collectBegin)
 				{
@@ -217,10 +217,18 @@ void Processer::detect(bool* isThreadAlive)
 					this->collectMode = false;
 					this->collectBegin = false;
 				}
+				if (MAX_FRAME == this->jointFrameData.size())
+				{
+					this->deleteJointFrame(MAX_FRAME / 2);
+				}
 				//convert label and score to string , and show
 				std::string label;
 				if (this->currentScore > 0.5)
+				{
+					this->labelMutex.lock_shared();
 					label = this->currentLabel + ":" + std::to_string(this->currentScore);
+					this->labelMutex.unlock_shared();
+				}
 				else if (this->currentScore == 0.0)
 					label = "computing";
 				else
@@ -234,8 +242,10 @@ void Processer::detect(bool* isThreadAlive)
 		}
 		else //didn't detect person joints 
 		{
+			this->labelMutex.lock();
 			this->currentLabel = "";
-			this->currentScore = 0.0;
+			this->currentScore = 0;
+			this->labelMutex.unlock();
 			if (this->jointFrameData.size() >= 15 && this->collectMode== true)
 			{
 				//上传数据
@@ -266,6 +276,7 @@ int Processer::begin_collect(std::string label)
 	this->collectMode = true;
 	this->collectBegin = false;
 	this->collectLabel = label;
+	this->clearJointFrame();
 	return 0;
 }
 
@@ -356,7 +367,7 @@ void Processer::draw_skeleton(cv::Mat& mat)
 	cv::Scalar color_point = cv::Scalar(0, 0, 255);
 	for (auto jointData : this->jointsData)
 	{
-		cv::Point p = cv::Point(WIDTH-jointData.second.x, jointData.second.y);
+		cv::Point p = cv::Point(jointData.second.x, jointData.second.y);
 		circle(mat, p, 10, color_point, -1);
 	}
 }
@@ -531,7 +542,7 @@ void camera_fresh(int* numInQueue, mutable std::shared_mutex* mutex, bool* isThr
 	}
 }
 
-void check_message(std::string* mess, bool* mess_new, std::string* cLabel, float* cScore, bool* isAlive)
+void check_message(std::string* mess, bool* mess_new, std::string* cLabel, float* cScore, bool* isAlive, mutable std::shared_mutex* mutex)
 {
 	while (*isAlive)
 	{
@@ -551,12 +562,15 @@ void check_message(std::string* mess, bool* mess_new, std::string* cLabel, float
 			std::string::size_type posL = mess->find(':');
 			if (posL == mess->npos)
 				return;
-			*cLabel = mess->substr(1, posL - 1);
 			// get score
 			std::string::size_type posS = mess->find(':', posL);
 			if (posS == mess->npos)
 				return;
+			mutex->lock();
+			*cLabel = mess->substr(1, posL - 1);
 			*cScore = atof(mess->substr(posL + 1, posS - posL - 1).c_str());
+			mutex->unlock();
 		}
+		*mess_new = false;
 	}
 }

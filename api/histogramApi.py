@@ -396,7 +396,6 @@ def gen_vec_from_feature(featureStr):
 
 		thres = 10
 		X = vars_point
-		print(X.shape, center_point.shape)
 		label, dist = vq(X, center_point)
 		m = -1
 		for j in label:
@@ -439,8 +438,6 @@ def gen_vec_from_feature(featureStr):
 			if dist[m] < 30:
 				histogram_traj[0][j] += 1
 		# print(df)
-		print(np.sum(histogram_point[0]), np.sum(histogram_angle[0]), np.sum(histogram_delta_point[0]),
-			  np.sum(histogram_delta_angle[0]), np.sum(histogram_traj[0]))
 
 		histogram_point[0] = standardization(histogram_point[0])
 		histogram_angle[0] = standardization(histogram_angle[0])
@@ -460,7 +457,6 @@ def gen_vec_from_feature(featureStr):
 	# temp=np.hstack((temp,histogram_traj))
 
 	histogram_final.append(temp)
-	print(histogram_final, np.array(histogram_final).shape)
 
 	return histogram_final
 
