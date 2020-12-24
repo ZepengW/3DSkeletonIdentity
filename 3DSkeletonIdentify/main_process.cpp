@@ -203,7 +203,7 @@ void Processer::detect(bool* isThreadAlive)
 				this->addJointFrame(jointsArray);
 				
 
-				if (this->jointFrameData.size() %10 == 0 && this->currentScore < 0.7 && !this->collectMode)
+				if (this->jointFrameData.size() %5 == 0 && this->currentScore < 0.7 && !this->collectMode)
 				{
 					//帧数为10的倍数 ，之前判断的置信度小于0.7 ，且为检测模式
 					std::string labelScore;
@@ -226,7 +226,7 @@ void Processer::detect(bool* isThreadAlive)
 				if (this->currentScore > 0.5)
 				{
 					this->labelMutex.lock_shared();
-					label = this->currentLabel + ":" + std::to_string(this->currentScore);
+					label = this->currentLabel;
 					this->labelMutex.unlock_shared();
 				}
 				else if (this->currentScore == 0.0)
@@ -246,7 +246,7 @@ void Processer::detect(bool* isThreadAlive)
 			this->currentLabel = "";
 			this->currentScore = 0;
 			this->labelMutex.unlock();
-			if (this->jointFrameData.size() >= 15 && this->collectMode== true)
+			if (this->jointFrameData.size() >= 5 && this->collectMode== true)
 			{
 				//上传数据
 				((TcpClient*)this->socket_client)->collect_skeleton_label(this->jointFrameData, this->collectLabel, this->messOut, this->messIsNew);
